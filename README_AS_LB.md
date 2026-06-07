@@ -387,6 +387,8 @@ Secara **best practice** dalam arsitektur **High Availability**, **instance** EC
 
 Oleh karena itu, verifikasi aplikasi pada tahap ini **wajib** dilakukan secara internal.
 
+Klik instance → copy **Public IPv4 address**
+
 1. **Masuk ke dalam instance EC2 melalui SSH:**
 
 ```bash
@@ -407,8 +409,6 @@ Proses `neuroclash-app` berstatus `online` dengan angka `0` pada kolom restart (
 3. **Uji endpoint health check secara lokal:**
 
 Lakukan _request_ langsung ke `localhost` untuk mem-bypass Security Group dan memastikan aplikasi siap melayani _request_ dari Load Balancer nantinya.
-
-Klik instance → copy **Public IPv4 address**
 
 ```bash
 curl http://localhost:3000/api/health
