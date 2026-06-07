@@ -325,34 +325,52 @@ Instance ini dibuat **sekali untuk tujuan testing**. Setelah berjalan normal, ki
 ```bash
 #!/bin/bash
 # ============================================================
-# User Data – EC2 Manual Test
-# Tidak ada hardcode kode aplikasi di sini.
-# Kode diambil langsung dari GitHub via git clone.
+# User Data – EC2 Manual Test (Next.js Version)
 # ============================================================
 
-# Update sistem dan install git
+# 1. Buat Swap Memory (Mencegah instance freeze saat build Next.js di t2.micro)
+fallocate -l 1G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# 2. Update sistem dan install git
 yum update -y
 yum install -y git
 
-# Install Node.js 18.x
+# 3. Install Node.js 18.x
 curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
 yum install -y nodejs
 
-# Install PM2 secara global
+# 4. Install PM2 secara global
 npm install -g pm2
 
-# Clone repositori dari GitHub
+# 5. Clone repositori dari GitHub
 cd /home/ec2-user
 git clone https://github.com/mrobialwww/neuroclash-gg.git
 
-# Masuk subfolder app dan install dependencies
-cd /home/ec2-user/neuroclash-gg/app
+# 6. Masuk ke root direktori (tempat package.json berada) dan install dependencies
+cd /home/ec2-user/neuroclash-gg
 npm install
 
-# Jalankan aplikasi dengan PM2
-pm2 start server.js --name "neuroclash-app"
+# 7. Set Environment Variables & Matikan Telemetry
+cat <<EOT >> /home/ec2-user/neuroclash-gg/.env
+NEXT_PUBLIC_SUPABASE_URL=isi_dengan_url_asli_supabase_kamu
+NEXT_PUBLIC_SUPABASE_ANON_KEY=isi_dengan_key_asli_supabase_kamu
+EOT
+export NEXT_TELEMETRY_DISABLED=1
 
-# Simpan konfigurasi PM2 agar auto-start setelah reboot
+# 8. Build aplikasi Next.js
+npm run build
+
+# 9. Fix ownership (Lakukan sebelum PM2 jalan agar tidak ada isu permission)
+chown -R ec2-user:ec2-user /home/ec2-user/neuroclash-gg
+
+# 10. Jalankan aplikasi Next.js dengan PM2
+pm2 start npm --name "neuroclash-app" -- start
+
+# 11. Simpan konfigurasi PM2 agar auto-start setelah reboot
 pm2 save
 env PATH=$PATH:/usr/bin pm2 startup systemd -u root --hp /root
 
@@ -435,28 +453,36 @@ Launch Template adalah blueprint yang digunakan ASG setiap kali perlu launch ins
 ```bash
 #!/bin/bash
 # ============================================================
-# User Data – Launch Template (dipakai oleh Auto Scaling Group)
-# AMI sudah include Node.js 18 dan PM2.
-# Script ini hanya: hapus clone lama → git clone terbaru → npm install → pm2 start
-# Dengan begitu, setiap instance baru SELALU pakai kode terkini dari GitHub.
+# User Data – Launch Template (Fase 4 - ASG Next.js Version)
+# AMI sudah membawa Node.js, PM2, dan Swap Memory 1GB.
 # ============================================================
 
-# Hapus clone lama jika ada (dari snapshot AMI)
+# 1. Hapus hasil clone lama (bawaan dari snapshot AMI) agar benar-benar fresh
 rm -rf /home/ec2-user/neuroclash-gg
 
-# Clone kode terbaru dari GitHub
+# 2. Clone kode terbaru dari branch main di GitHub
 cd /home/ec2-user
 git clone https://github.com/mrobialwww/neuroclash-gg.git
+cd /home/ec2-user/neuroclash-gg
 
-# Masuk subfolder app, install dependencies
-cd /home/ec2-user/neuroclash-gg/app
+# 3. Install dependencies
 npm install
 
-# Fix ownership
+# 4. Set Environment Variables & Matikan Telemetry
+cat <<EOT >> /home/ec2-user/neuroclash-gg/.env
+NEXT_PUBLIC_SUPABASE_URL=isi_dengan_url_asli_supabase_kamu
+NEXT_PUBLIC_SUPABASE_ANON_KEY=isi_dengan_key_asli_supabase_kamu
+EOT
+export NEXT_TELEMETRY_DISABLED=1
+
+# 5. Build aplikasi Next.js (Aman karena Swap Memory dari AMI sudah aktif)
+npm run build
+
+# 6. Fix ownership untuk menghindari isu permission pada PM2
 chown -R ec2-user:ec2-user /home/ec2-user/neuroclash-gg
 
-# Jalankan dengan PM2
-pm2 start /home/ec2-user/neuroclash-gg/app/server.js --name "neuroclash-app"
+# 7. Jalankan aplikasi Next.js menggunakan PM2
+pm2 start npm --name "neuroclash-app" -- start
 pm2 save
 ```
 
