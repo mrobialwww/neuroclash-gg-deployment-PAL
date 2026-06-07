@@ -99,7 +99,7 @@ Kemampuan sistem:
 | Auto Scaling    | Auto Scaling Group                 | Min 1, Desired 2, Max 4                |
 | Monitoring      | Amazon CloudWatch                  | CPU metric dan alarm                   |
 | Source Code     | GitHub via `git clone`             | `mrobialwww/neuroclash-gg`             |
-| Runtime         | Node.js 18.x + Express             | Subfolder `/app`                       |
+| Runtime         | Node.js 20.x + Express             | Subfolder `/app`                       |
 | Process Manager | PM2                                | Auto-restart dan survive reboot        |
 
 ---
@@ -339,8 +339,8 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 yum update -y
 yum install -y git
 
-# 3. Install Node.js 18.x
-curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+# 3. Install Node.js 20.x
+curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
 yum install -y nodejs
 
 # 4. Install PM2 secara global
@@ -381,25 +381,55 @@ chown -R ec2-user:ec2-user /home/ec2-user/neuroclash-gg
 8. Klik **Launch instance**
 9. Tunggu status **Running** dan **2/2 checks passed** (~3–5 menit)
 
-#### 3.2 Verifikasi Aplikasi Berjalan
+### 3.2 Verifikasi Aplikasi Berjalan
 
-1. Klik instance → copy **Public IPv4 address**
-2. Buka browser: `http://[PUBLIC-IP]:3000` → harus muncul halaman aplikasi ✅
-3. Coba: `http://[PUBLIC-IP]:3000/health` → harus dapat JSON `{"status":"healthy",...}` ✅
+Secara **best practice** dalam arsitektur **High Availability**, **instance** EC2 tidak boleh diakses secara publik untuk verifikasi aplikasi.
 
-**Jika tidak muncul, SSH untuk troubleshoot:**
+Oleh karena itu, verifikasi aplikasi pada tahap ini **wajib** dilakukan secara internal.
+
+1. **Masuk ke dalam instance EC2 melalui SSH:**
 
 ```bash
-ssh -i labsuser.pem ec2-user@[PUBLIC-IP]
+ssh -i labsuser.pem ec2-user@[PUBLIC-IP-INSTANCE]
+```
 
-# Cek status PM2
-pm2 status
+2. **Pastikan aplikasi Next.js berjalan stabil di PM2:**
 
-# Cek log aplikasi
-pm2 logs neuroclash-app --lines 30
+Cek status _process manager_ untuk memastikan aplikasi tidak mengalami _crash_ setelah proses _build_ selesai.
 
-# Cek log User Data untuk lihat error git clone / npm install
-sudo cat /var/log/cloud-init-output.log | tail -80
+```bash
+sudo pm2 status
+```
+
+**Output yang diharapkan:**  
+Proses `neuroclash-app` berstatus `online` dengan angka `0` pada kolom restart (↺).
+
+3. **Uji endpoint health check secara lokal:**
+
+Lakukan _request_ langsung ke `localhost` untuk mem-bypass Security Group dan memastikan aplikasi siap melayani _request_ dari Load Balancer nantinya.
+
+Klik instance → copy **Public IPv4 address**
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+**Output yang diharapkan:**  
+Mengembalikan respons JSON seperti:
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "..."
+}
+```
+
+### Catatan Troubleshooting
+
+Jika `curl` gagal atau PM2 berstatus `errored`, periksa log aplikasi untuk melihat detail _error_ (misalnya masalah _environment variables_ Supabase atau kegagalan kompilasi) dengan perintah:
+
+```bash
+sudo pm2 logs neuroclash-app --lines 30
 ```
 
 #### 3.3 Buat AMI dari Instance
@@ -409,7 +439,7 @@ sudo cat /var/log/cloud-init-output.log | tail -80
 1. Klik kanan instance `ec2-nodejs-manual-test` → **Image and templates** → **Create image**
 2. Isi:
    - **Image name:** `ami-neuroclash-nodejs`
-   - **Image description:** `AMI Node.js 18 + PM2 untuk HA deployment via git clone`
+   - **Image description:** `AMI Node.js 20 + PM2 untuk HA deployment via git clone`
    - **No reboot:** ✅ centang (instance tidak restart saat pembuatan AMI)
 3. Klik **Create image**
 4. Menu **AMIs** di panel kiri → tunggu status **Available** (~5–10 menit)
