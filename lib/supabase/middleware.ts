@@ -38,9 +38,23 @@ export async function updateSession(request: NextRequest) {
 
   const user = data?.claims;
 
+  const { pathname } = request.nextUrl;
+
+  // Public routes — tidak memerlukan autentikasi sama sekali
+  const PUBLIC_ROUTES = [
+    "/api/health", // Health check endpoint untuk ALB / monitoring
+  ];
+
+  const isPublicRoute = PUBLIC_ROUTES.some((route) =>
+    pathname.startsWith(route)
+  );
+
+  if (isPublicRoute) {
+    return supabaseResponse;
+  }
+
   const isAuthPage =
-    request.nextUrl.pathname.startsWith("/signin") ||
-    request.nextUrl.pathname.startsWith("/signup");
+    pathname.startsWith("/signin") || pathname.startsWith("/signup");
 
   // Jika sudah login, jangan bisa akses halaman auth lagi
   if (user && isAuthPage) {
@@ -54,9 +68,9 @@ export async function updateSession(request: NextRequest) {
   if (
     !user &&
     !isAuthPage &&
-    request.nextUrl.pathname !== "/" &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/api")
+    pathname !== "/" &&
+    !pathname.startsWith("/auth") &&
+    !pathname.startsWith("/api")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/signin";
