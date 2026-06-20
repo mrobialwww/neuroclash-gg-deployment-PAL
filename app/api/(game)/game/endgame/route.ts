@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { endgameService } from "@/services/endgameService";
+import { gameRoomService } from "@/modules/games/game.service";
 
 /**
  * POST /api/game/endgame
@@ -9,28 +9,28 @@ import { endgameService } from "@/services/endgameService";
  * This uses the admin client to bypass RLS.
  */
 export async function POST(request: Request) {
-  try {
-    const { game_room_id } = await request.json();
+    try {
+        const { game_room_id } = await request.json();
 
-    if (!game_room_id) {
-      return NextResponse.json(
-        { error: "Missing game_room_id" },
-        { status: 400 }
-      );
+        if (!game_room_id) {
+            return NextResponse.json(
+                { error: "Missing game_room_id" },
+                { status: 400 },
+            );
+        }
+
+        // Trigger atomic centralized reward processing
+        await gameRoomService.processCentralizedRewards(game_room_id);
+
+        return NextResponse.json({
+            success: true,
+            message: "Centralized rewards processed successfully",
+        });
+    } catch (error) {
+        console.error("[Centralized Endgame API] Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    // Trigger atomic centralized reward processing
-    await endgameService.processCentralizedRewards(game_room_id);
-
-    return NextResponse.json({
-      success: true,
-      message: "Centralized rewards processed successfully",
-    });
-  } catch (error) {
-    console.error("[Centralized Endgame API] Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
 }

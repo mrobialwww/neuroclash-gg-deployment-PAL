@@ -7,25 +7,31 @@
  *   2. Tujuan utamanya ketika user gabung ke suatu room game dari room_code yang dimiliki
  */
 
-import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { gameRoomService } from "@/modules/games/game.service";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ room_code: string }> }) {
-  try {
-    const supabase = await createClient();
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ room_code: string }> },
+) {
+    try {
+        const { room_code } = await params;
+        const data = await gameRoomService.getRoomByCode(room_code);
 
-    const { room_code } = await params;
+        if (!data) {
+            return NextResponse.json(
+                { error: "Room not found" },
+                { status: 404 },
+            );
+        }
 
-    const { data, error } = await supabase.from("game_rooms").select("*").eq("room_code", room_code);
-
-    if (error) {
-      console.error("Supabase Error:", error);
-      throw error;
+        // Return as array to maintain backward compatibility with old select("*")
+        return NextResponse.json({ data: [data] });
+    } catch (error) {
+        console.error("API Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    return NextResponse.json({ data });
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
 }

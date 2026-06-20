@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Baloo_2 } from "next/font/google";
 import { Toaster } from "sonner";
 import Image from "next/image";
+import QueryProvider from "@/components/common/QueryProvider";
 import "./globals.css";
 
 const baloo2 = Baloo_2({
@@ -37,9 +38,10 @@ export default function RootLayout({
         </div>
 
         {/* Konten Utama */}
-        <div className="relative z-0">{children}</div>
-
-        <Toaster richColors position="top-right" />
+        <QueryProvider>
+          <div className="relative z-0">{children}</div>
+          <Toaster richColors position="top-right" />
+        </QueryProvider>
       </body>
     </html>
   );

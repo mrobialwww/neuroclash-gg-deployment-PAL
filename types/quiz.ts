@@ -31,3 +31,21 @@ export interface PlayerMatchState {
   is_alive: boolean;
   score: number;
 }
+
+export interface QuizOption {
+  /** answer_id dari DB — dikirim saat submit jawaban */
+  id: string;
+  /** A / B / C / D */
+  label: string;
+  /** teks jawaban */
+  text: string;
+  /** apakah ini jawaban yang benar */
+  isCorrect: boolean;
+}
+
+export interface QuizQuestion {
+  question_id: string;
+  question_text: string;
+  question_order: number;
+  options: QuizOption[];
+}

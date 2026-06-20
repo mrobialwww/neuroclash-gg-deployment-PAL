@@ -22,56 +22,48 @@
  *         yang bersangkutan ke dalam tabel user_characters
  */
 import { NextResponse } from "next/server";
-import { buyCharacter } from "@/services/shop/shopService.server";
+import { userBuyCharacterSchema } from "@/modules/characters/character.schema";
+import { characterServices } from "@/modules/characters/character.service";
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
+    try {
+        const body = await request.json();
 
-    const { user_id, character_id, cost, coin, base_character, skin_level } =
-      body;
+        const validation = userBuyCharacterSchema.safeParse(body);
 
-    // Validate required fields
-    if (
-      !user_id ||
-      character_id === undefined ||
-      cost === undefined ||
-      coin === undefined ||
-      !base_character ||
-      !skin_level
-    ) {
-      return NextResponse.json(
-        { error: "Data tidak lengkap untuk melakukan pembelian" },
-        { status: 400 }
-      );
+        if (!validation.success) {
+            return NextResponse.json(
+                {
+                    error: {
+                        code: "VALIDATION_ERROR",
+                        message:
+                            "Data tidak lengkap atau tidak valid untuk melakukan pembelian",
+                        details: validation.error.format(),
+                    },
+                },
+                { status: 400 },
+            );
+        }
+
+        await characterServices.buyCharacter(validation.data);
+
+        return NextResponse.json({
+            message: "Berhasil melakukan pembelian karakter baru",
+        });
+    } catch (error: any) {
+        console.error("API Error [POST /api/user-character]:", error);
+
+        // Check if it's a known error from the service
+        const status =
+            error.message &&
+            (error.message.includes("Coin") ||
+                error.message.includes("default"))
+                ? 400
+                : 500;
+
+        return NextResponse.json(
+            { error: error.message || "Internal Server Error" },
+            { status },
+        );
     }
-
-    // Panggil service yang menangani logic & validasi
-    await buyCharacter({
-      userId: user_id,
-      characterId: character_id,
-      cost,
-      coin,
-      baseCharacter: base_character,
-      skinLevel: skin_level,
-    });
-
-    return NextResponse.json({
-      message: "Berhasil melakukan pembelian karakter baru",
-    });
-  } catch (error: any) {
-    console.error("API Error [POST /api/user-character]:", error);
-
-    // Check if it's a known error from the service
-    const status =
-      error.message &&
-      (error.message.includes("Coin") || error.message.includes("default"))
-        ? 400
-        : 500;
-
-    return NextResponse.json(
-      { error: error.message || "Internal Server Error" },
-      { status }
-    );
-  }
 }

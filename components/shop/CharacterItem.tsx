@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/utils";
 import { getCharacterBgColor } from "@/lib/constants/characters";
 
 type Props = {
@@ -24,22 +24,27 @@ export const CharacterItem = ({
     isSelected,
     onClick,
 }: Props) => {
-    const bgColor = skin_level === 'epic' ? '#7C13A2' : skin_level === 'legend' ? '#C89B00' : getCharacterBgColor(base_character);
+    const bgColor =
+        skin_level === "epic"
+            ? "#7C13A2"
+            : skin_level === "legend"
+            ? "#C89B00"
+            : getCharacterBgColor(base_character);
 
     return (
         <button
             onClick={onClick}
-            className="flex flex-col items-center gap-1 group w-full"
+            className="group flex w-full flex-col items-center gap-1"
         >
             <div
                 className={cn(
-                    "relative w-18 h-18 md:w-22 md:h-22 rounded-full border-3 border-white overflow-hidden flex items-center justify-center transition-colors",
-                    isSelected ? "shadow-[0_0_20px_8px_#FDA928]" : "shadow-lg"
+                    "w-18 h-18 md:w-22 md:h-22 border-3 relative flex items-center justify-center overflow-hidden rounded-full border-white transition-colors",
+                    isSelected ? "shadow-[0_0_20px_8px_#FDA928]" : "shadow-lg",
                 )}
                 style={{ backgroundColor: bgColor }}
             >
                 {/* Character Image container */}
-                <div className="relative w-[70%] h-[70%] flex items-center justify-center">
+                <div className="relative flex h-[70%] w-[70%] items-center justify-center">
                     <Image
                         src={image_url}
                         alt={name}
@@ -51,18 +56,18 @@ export const CharacterItem = ({
 
                 {/* Overlays (Locked) */}
                 {!owned && (
-                    <div className="absolute inset-0 bg-[#161616]/50 flex items-center justify-center z-20 rounded-full">
+                    <div className="absolute inset-0 z-20 flex items-center justify-center rounded-full bg-[#161616]/50">
                         <Image
                             src="/icons/lock.svg"
                             alt="Locked"
                             width={32}
                             height={32}
-                            className="w-8 h-8 text-white"
+                            className="h-8 w-8 text-white"
                         />
                     </div>
                 )}
             </div>
-            <span className="text-sm md:text-base font-bold w-full text-center mt-1 truncate px-1 text-white">
+            <span className="mt-1 w-full truncate px-1 text-center text-sm font-bold text-white md:text-base">
                 {name}
             </span>
         </button>

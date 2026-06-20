@@ -34,180 +34,98 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  gameRoomRepository,
-  CreateRoomParams,
-} from "@/repository/gameRoomRepository";
-import { Difficulty, RoomStatus, RoomVisibility } from "@/types/enums";
+import { gameRoomService } from "@/modules/games/game.service";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    const { searchParams } = new URL(request.url);
-    const roomVisibility = searchParams.get("room_visibility") ?? "public";
-    const roomStatus = searchParams.get("room_status") ?? "open";
+    try {
+        const { searchParams } = new URL(request.url);
+        const roomVisibility = searchParams.get("room_visibility") ?? "public";
+        const roomStatus = searchParams.get("room_status") ?? "open";
 
-    // Validate against known values
-    if (!["public", "private"].includes(roomVisibility)) {
-      return NextResponse.json(
-        { error: "room_visibility tidak valid." },
-        { status: 400 }
-      );
+        // Validate against known values
+        if (!["public", "private"].includes(roomVisibility)) {
+            return NextResponse.json(
+                { error: "room_visibility tidak valid." },
+                { status: 400 },
+            );
+        }
+        if (!["open", "playing", "finished"].includes(roomStatus)) {
+            return NextResponse.json(
+                { error: "room_status tidak valid." },
+                { status: 400 },
+            );
+        }
+
+        const rooms = await gameRoomService.getPublicOpenRooms();
+
+        return NextResponse.json({ data: rooms });
+    } catch (error) {
+        console.error("[API] GET /api/game-rooms Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-    if (!["open", "playing", "finished"].includes(roomStatus)) {
-      return NextResponse.json(
-        { error: "room_status tidak valid." },
-        { status: 400 }
-      );
-    }
-
-    const rooms = await gameRoomRepository.getPublicOpenRooms();
-
-    return NextResponse.json({ data: rooms });
-  } catch (error) {
-    console.error("[API] GET /api/game-rooms Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  console.log("=".repeat(60));
-  console.log("[API] POST /api/game-rooms START");
-  console.log("=".repeat(60));
-
-  try {
-    let body: Record<string, unknown>;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON in request body" },
-        { status: 400 }
-      );
-    }
-
-    const {
-      user_id,
-      room_code,
-      category,
-      title,
-      max_player,
-      total_round,
-      difficulty,
-      room_status,
-      room_visibility,
-      questions: listQuestions,
-    } = body as any;
-
-    const finalCategory =
-      listQuestions?.theme_materials || category || "General";
-    const enumCategories = [
-      "bahasaindonesia",
-      "bahasainggris",
-      "biologi",
-      "pancasila",
-      "pemrograman",
-      "sejarah",
-    ];
-
-    const formattedCat = String(finalCategory)
-      .toLowerCase()
-      .replace(/\s+/g, "");
-
-    let imageName = "default2.webp";
-    if (enumCategories.includes(formattedCat)) {
-      imageName = `${formattedCat}2.webp`;
-    }
-
-    const generatedImageUrl = `https://cmgkgwzhiloxdttftmwf.supabase.co/storage/v1/object/public/room-categories/${imageName}`;
-
-    const finalRoomCode =
-      room_code || Math.random().toString(36).substring(2, 10).toUpperCase();
-
-    // ── Validate required fields ──────────────────────────────────────────
-    if (!user_id || !finalCategory || !max_player || !total_round) {
-      return NextResponse.json(
-        {
-          error:
-            "Field wajib kurang: user_id, category, max_player, total_round.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const params: CreateRoomParams = {
-      user_id: String(user_id),
-      room_code: String(finalRoomCode),
-      category: String(finalCategory),
-      title: title ? String(title) : null,
-      max_player: Number(max_player),
-      total_round: Number(total_round),
-      difficulty: String(difficulty ?? "mudah") as Difficulty,
-      image_url: generatedImageUrl,
-      room_status: String(room_status ?? "open") as RoomStatus,
-      room_visibility: String(room_visibility ?? "public") as RoomVisibility,
-    };
-
-    console.log("[API] Inserting game_room via repository:", {
-      room_code: params.room_code,
-      category: params.category,
-      max_player: params.max_player,
-    });
-
-    const room = await gameRoomRepository.createRoom(params);
-
-    if (!room) {
-      console.error("[API] gameRoomRepository.createRoom returned null");
-      return NextResponse.json(
-        { error: "Gagal membuat game room." },
-        { status: 500 }
-      );
-    }
-
-    // Insert Questions and Answers
-    if (
-      listQuestions?.list_questions &&
-      listQuestions.list_questions.length > 0
-    ) {
-      const MappedQuestions = listQuestions.list_questions.map((q: any) => ({
-        question_order: q.order || q.question_order,
-        question_text: q.question || q.question_text,
-        answers: (q.options || q.answers || []).map((opt: any) => ({
-          answer_text: opt.text || opt.answer_text,
-          is_correct: opt.is_correct || opt.isCorrect,
-          key: opt.key,
-        })),
-      }));
-      await gameRoomRepository.insertQuestionsWithAnswers(
-        room.game_room_id,
-        MappedQuestions
-      );
-    }
-
-    // Insert Ability Materials
-    if (
-      listQuestions?.ability_materials &&
-      listQuestions.ability_materials.length > 0
-    ) {
-      await gameRoomRepository.insertAbilityMaterials(
-        room.game_room_id,
-        listQuestions.ability_materials
-      );
-    }
-
-    console.log("[API] POST /api/game-rooms SUCCESS:", room.game_room_id);
+    console.log("=".repeat(60));
+    console.log("[API] POST /api/game-rooms START");
     console.log("=".repeat(60));
 
-    return NextResponse.json({ data: [room] }, { status: 201 });
-  } catch (error) {
-    console.error("[API] FINAL ERROR in POST /api/game-rooms:", error);
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Internal Server Error",
-      },
-      { status: 500 }
-    );
-  }
+    try {
+        let body: Record<string, unknown>;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json(
+                { error: "Invalid JSON in request body" },
+                { status: 400 },
+            );
+        }
+
+        const {
+            user_id,
+            category,
+            max_player,
+            total_round,
+            questions: listQuestions,
+        } = body as any;
+
+        // Validate required fields
+        const finalCategory = listQuestions?.theme_materials || category;
+        if (!user_id || !finalCategory || !max_player || !total_round) {
+            return NextResponse.json(
+                {
+                    error: "Field wajib kurang: user_id, category, max_player, total_round.",
+                },
+                { status: 400 },
+            );
+        }
+
+        const room = await gameRoomService.createGameRoomFromAI(body as any);
+
+        if (!room) {
+            console.error("[API] gameRoomRepository.createRoom returned null");
+            return NextResponse.json(
+                { error: "Gagal membuat game room." },
+                { status: 500 },
+            );
+        }
+
+        console.log("[API] POST /api/game-rooms SUCCESS:", room.game_room_id);
+        console.log("=".repeat(60));
+        return NextResponse.json({ data: [room] }, { status: 201 });
+    } catch (error) {
+        console.error("[API] FINAL ERROR in POST /api/game-rooms:", error);
+        return NextResponse.json(
+            {
+                error:
+                    error instanceof Error
+                        ? error.message
+                        : "Internal Server Error",
+            },
+            { status: 500 },
+        );
+    }
 }

@@ -35,81 +35,83 @@
  *   2. Tujuan utamanya ketika ingin user memilih karakter ketika akan mengikuti suatu game/quiz
  */
 
-import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { characterServices } from "@/modules/characters/character.service";
+import { userEquipCharacterSchema } from "@/modules/characters/character.schema";
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ user_id: string }> }
+    request: NextRequest,
+    { params }: { params: Promise<{ user_id: string }> },
 ) {
-  try {
-    const supabase = await createClient();
+    try {
+        const { user_id } = await params;
+        const { searchParams } = new URL(request.url);
 
-    const { user_id } = await params;
-    const { searchParams } = new URL(request.url);
+        const is_used = searchParams.get("is_used");
 
-    const is_used = searchParams.get("is_used");
+        // Convert string ke boolean
+        const is_used_bool =
+            is_used === "true" ? true : is_used === "false" ? false : undefined;
 
-    // Convert string ke boolean
-    const is_used_bool =
-      is_used === "true" ? true : is_used === "false" ? false : undefined;
+        const data = await characterServices.getUserCharacters(
+            user_id,
+            is_used_bool,
+        );
 
-    let query = supabase
-      .from("characters")
-      .select("*, user_characters!inner(user_id, is_used)")
-      .eq("user_characters.user_id", user_id);
-
-    if (is_used_bool) {
-      query = query.eq("user_characters.is_used", is_used_bool);
+        return NextResponse.json(
+            {
+                success: true,
+                message: "Fetched user characters successfully",
+                data,
+            },
+            { status: 200 },
+        );
+    } catch (error) {
+        console.error("API Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Supabase Error:", error);
-      throw error;
-    }
-
-    return NextResponse.json({ data });
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
 }
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ user_id: string }> }
+    request: NextRequest,
+    { params }: { params: Promise<{ user_id: string }> },
 ) {
-  try {
-    const supabase = await createClient();
+    try {
+        const body = await request.json();
+        const { user_id } = await params;
 
-    const body = await request.json();
+        // Validasi payload (memastikan character_id ada dan berupa positive integer)
+        const validation = userEquipCharacterSchema.safeParse(body);
 
-    const { user_id } = await params;
+        if (!validation.success) {
+            return NextResponse.json(
+                {
+                    error: {
+                        code: "VALIDATION_ERROR",
+                        message: "Data tidak lengkap atau tidak valid",
+                        details: validation.error.format(),
+                    },
+                },
+                { status: 400 },
+            );
+        }
 
-    // Memanggil fungsi transaksi (RPC) di Supabase
-    const { error } = await supabase.rpc("handle_equip_character", {
-      p_user_id: user_id,
-      p_character_id: body.character_id,
-    });
+        await characterServices.equipCharacter(
+            user_id,
+            validation.data.character_id,
+        );
 
-    if (error) {
-      console.error("Supabase Error:", error);
-      throw error;
+        return NextResponse.json({
+            message: "Karakter telah berhasil dipilih",
+        });
+    } catch (error: any) {
+        console.error("API Error:", error);
+        return NextResponse.json(
+            { error: error.message || "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    return NextResponse.json({
-      message: "Karakter telah berhasil dipilih",
-    });
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
 }

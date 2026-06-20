@@ -25,57 +25,60 @@
  *      c. Creator game mengganti quiz/game yg awalnya dari private menjadi public atau sebaliknya
  */
 
-import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { gameRoomService } from "@/modules/games/game.service";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ game_room_id: string }> }) {
-  try {
-    const supabase = await createClient();
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ game_room_id: string }> },
+) {
+    try {
+        const { game_room_id } = await params;
+        const data = await gameRoomService.getRoomById(game_room_id);
 
-    const { game_room_id } = await params;
+        if (!data) {
+            return NextResponse.json(
+                { error: "Room not found" },
+                { status: 404 },
+            );
+        }
 
-    const { data, error } = await supabase.from("game_rooms").select("*").eq("game_room_id", game_room_id);
-
-    if (error) {
-      console.error("Supabase Error:", error);
-      throw error;
+        return NextResponse.json({ data: [data] }); // Return as array to maintain backward compatibility with old select("*")
+    } catch (error) {
+        console.error("API Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    return NextResponse.json({ data });
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ game_room_id: string }> }) {
-  try {
-    const supabase = await createClient();
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ game_room_id: string }> },
+) {
+    try {
+        const body = await request.json();
+        const { game_room_id } = await params;
 
-    const body = await request.json();
+        const updatePayload: { room_visibility?: string, room_status?: string } = {};
 
-    const { game_room_id } = await params;
+        if (body.room_visibility) {
+            updatePayload.room_visibility = body.room_visibility;
+        }
 
-    const updatePayload: Record<string, any> = {};
+        if (body.room_status) {
+            updatePayload.room_status = body.room_status;
+        }
 
-    if (body.room_visibility) {
-      updatePayload.room_visibility = body.room_visibility;
+        const data = await gameRoomService.updateRoomSettings(game_room_id, updatePayload);
+
+        return NextResponse.json({ data: [data] }); // Return as array to maintain backward compatibility
+    } catch (error) {
+        console.error("API Error:", error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 },
+        );
     }
-
-    if (body.room_status) {
-      updatePayload.room_status = body.room_status;
-    }
-
-    const { data, error } = await supabase.from("game_rooms").update(updatePayload).eq("game_room_id", game_room_id).select();
-
-    if (error) {
-      console.error("Supabase Error:", error);
-      throw error;
-    }
-
-    return NextResponse.json({ data });
-  } catch (error) {
-    console.error("API Error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
 }
